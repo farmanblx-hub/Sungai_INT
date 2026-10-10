@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RIVER IMPACT CISADANE - Sistem Monitoring Kondisi Sungai</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        riverGreen: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            dark: '#064e3b'
+                        },
+                        riverBlue: {
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            dark: '#0f172a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        .card-custom { border-radius: 18px; border: 1px solid rgba(226, 232, 240, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        @media print {
+            aside, header, nav, button, .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            main { padding: 0 !important; margin: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased pb-24 md:pb-0" x-data="cisadaneApp()">
+
+    <aside class="hidden md:flex flex-col w-72 bg-riverGreen-dark text-white fixed inset-y-0 z-50 shadow-xl">
+        <div class="p-6 border-b border-emerald-800/60 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-riverBlue-500 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                <i class="fa-solid fa-water"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-wide leading-tight">RIVER IMPACT</h1>
+                <p class="text-xs text-emerald-300 font-medium">CISADANE MONITORING</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+            <template x-for="item in navItems" :key="item.id">
+                <button @click="currentTab = item.id" 
+                    :class="currentTab === item.id ? 'bg-riverGreen-700 text-white shadow-md font-semibold' : 'text-emerald-100 hover:bg-emerald-900/50 hover:text-white'"
+                    class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-200 text-left text-sm">
+                    <i :class="item.icon" class="text-lg w-5 text-center"></i>
+                    <span x-text="item.label"></span>
+                </button>
+            </template>
+        </nav>
+
+        <div class="p-4 border-t border-emerald-800/60">
+            <div class="bg-emerald-900/40 p-3.5 rounded-xl border border-emerald-700/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-bold" x-text="petugasName.substring(0,2).toUpperCase()"></div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-bold truncate" x-text="petugasName"></p>
+                        <p class="text-[10px] text-emerald-300">Petugas Lapangan Aktif</p>
+                    </div>
+                </div>
+                <button @click="showSettingsModal = true" class="mt-3 w-full py-1.5 px-3 bg-emerald-800 hover:bg-emerald-700 text-xs font-medium rounded-lg transition text-emerald-100 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-gear"></i> Konfigurasi GAS Web App
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <header class="md:hidden bg-riverGreen-dark text-white sticky top-0 z-40 px-4 py-3.5 shadow-md flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-riverBlue-500 flex items-center justify-center text-white font-bold text-sm shadow">
+                <i class="fa-solid fa-water"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm leading-tight">RIVER IMPACT CISADANE</h1>
+                <p class="text-[10px] text-emerald-300">Sistem Monitoring Sungai</p>
+            </div>
+        </div>
+        <button @click="showSettingsModal = true" class="w-9 h-9 rounded-full bg-emerald-900 flex items-center justify-center text-emerald-200 hover:text-white">
+            <i class="fa-solid fa-gear text-sm"></i>
+        </button>
+    </header>
+
+    <main class="md:pl-72 min-h-screen pb-20 md:pb-0">
+        <div class="max-w-7xl mx-auto p-4 md:p-8">
+
+            <!-- CONNECTION STATUS BANNER -->
+            <div class="mb-4 p-3 rounded-xl text-xs flex items-center justify-between shadow-sm"
+                 :class="isOnlineSync ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full animate-pulse" :class="isOnlineSync ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                    <span class="font-semibold" x-text="isOnlineSync ? 'Terhubung ke Google Sheets & Google Drive (GAS Web App)' : 'Mode Lokal (Atur URL Web App GAS untuk Sinkronisasi Foto & Spreadsheet)'"></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button @click="loadDataFromSheets()" class="underline font-medium hover:opacity-80 flex items-center gap-1" title="Sinkronisasi Data Sekarang">
+                        <i class="fa-solid fa-rotate" :class="isSyncing ? 'fa-spin' : ''"></i> Sinkronkan
+                    </button>
+                    <button @click="showSettingsModal = true" class="underline font-medium hover:opacity-80">Atur URL</button>
+                </div>
+            </div>
+
+            <!-- ================= TAB 1: DASHBOARD ================= -->
+            <div x-show="currentTab === 'dashboard'" x-cloak class="space-y-6">
+                <!-- Welcome Banner -->
+                <div class="bg-gradient-to-r from-riverGreen-dark via-emerald-800 to-riverBlue-700 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
+                    <div class="absolute -right-10 -bottom-10 w-60 h-60 bg-white/5 rounded-full blur-2xl pointer-events-none"></div>
+                    <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <span class="px-3 py-1 bg-white/15 backdrop-blur-md rounded-full text-xs font-medium tracking-wide uppercase text-emerald-200">
+                                <i class="fa-regular fa-calendar mr-1.5"></i> <span x-text="currentDateFormatted"></span>
+                            </span>
+                            <h2 class="text-2xl md:text-3xl font-extrabold mt-2 tracking-tight">Halo, <span x-text="petugasName"></span>!</h2>
+                            <p class="text-emerald-100 text-sm mt-1 max-w-xl">Titik Tugas Aktif: <strong class="text-white" x-text="currentLocation"></strong></p>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 flex items-center gap-4">
+                            <div>
+                                <p class="text-xs text-emerald-200 uppercase tracking-wider font-semibold">Status Periode Ini</p>
+                                <p class="text-lg font-bold mt-0.5" x-text="periodOverallStatus"></p>
+                            </div>
+                            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                                 :class="getStatusBadgeClass(periodOverallStatus)">
+                                <i :class="getStatusIconClass(periodOverallStatus)"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DASHBOARD PERIOD FILTER & ACTION BUTTONS -->
+                <div class="card-custom bg-white p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-filter text-riverGreen-600 text-sm"></i>
+                            <span class="text-xs font-bold text-slate-700">Tanggal:</span>
+                        </div>
+                        <select x-model="dashboardPeriod" class="text-xs border rounded-xl px-3 py-2 bg-slate-50 font-semibold text-slate-700 focus:ring-2 focus:ring-riverGreen-500">
+                            <option value="hari_ini">Hari Ini</option>
+                            <option value="kemarin">Kemarin</option>
+                            <option value="7_hari">7 Hari</option>
+                            <option value="bulan_ini">Bulan Ini</option>
+                            <option value="tahun_ini">Tahun Ini</option>
+                            <option value="semua">Semua Waktu</option>
+                            <option value="custom">Custom Date</option>
+                        </select>
+                        
+                        <!-- Custom Date Inputs if 'custom' is selected -->
+                        <div x-show="dashboardPeriod === 'custom'" class="flex items-center gap-2">
+                            <input type="date" x-model="customStartDate" class="text-xs border rounded-xl px-2.5 py-1.5 bg-slate-50">
+                            <span class="text-xs text-slate-400">s/d</span>
+                            <input type="date" x-model="customEndDate" class="text-xs border rounded-xl px-2.5 py-1.5 bg-slate-50">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button @click="exportPDF()" class="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition flex items-center justify-center border border-rose-200" title="Export PDF">
+                            <i class="fa-solid fa-file-pdf text-sm"></i>
+                        </button>
+                        <button @click="exportExcel()" class="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition flex items-center justify-center border border-emerald-200" title="Export Excel / CSV">
+                            <i class="fa-solid fa-file-excel text-sm"></i>
+                        </button>
+                        <button @click="confirmClearAllData()" class="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center border border-slate-200" title="Hapus Semua Data">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div>
+                    <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-riverGreen-600"></i> Statistik Monitoring (<span class="text-riverGreen-700" x-text="getPeriodLabelText()"></span>)
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                        <div class="card-custom bg-white p-4 text-center">
+                            <p class="text-xs text-slate-500 font-medium">Total Titik</p>
+                            <p class="text-2xl font-extrabold text-slate-800 mt-1" x-text="stats.totalTitik">6</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center">
+                            <p class="text-xs text-emerald-600 font-medium">Sudah Diperiksa</p>
+                            <p class="text-2xl font-extrabold text-emerald-600 mt-1" x-text="stats.sudahDiperiksa">0</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center">
+                            <p class="text-xs text-amber-600 font-medium">Belum Diperiksa</p>
+                            <p class="text-2xl font-extrabold text-amber-600 mt-1" x-text="stats.belumDiperiksa">6</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center border-l-4 border-l-emerald-500">
+                            <p class="text-xs text-slate-500 font-medium">Baik</p>
+                            <p class="text-2xl font-extrabold text-emerald-600 mt-1" x-text="stats.baik">0</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center border-l-4 border-l-amber-400">
+                            <p class="text-xs text-slate-500 font-medium">Waspada</p>
+                            <p class="text-2xl font-extrabold text-amber-500 mt-1" x-text="stats.waspada">0</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center border-l-4 border-l-orange-500">
+                            <p class="text-xs text-slate-500 font-medium">Buruk</p>
+                            <p class="text-2xl font-extrabold text-orange-500 mt-1" x-text="stats.buruk">0</p>
+                        </div>
+                        <div class="card-custom bg-white p-4 text-center border-l-4 border-l-red-500 col-span-2 sm:col-span-1">
+                            <p class="text-xs text-slate-500 font-medium">Kritis</p>
+                            <p class="text-2xl font-extrabold text-red-600 mt-1" x-text="stats.kritis">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Single Monitoring Action Card -->
+                <div>
+                    <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-riverGreen-600"></i> Monitoring Harian Hari Ini
+                    </h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="card-custom bg-white p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-bold flex items-center gap-1.5">
+                                        <i class="fa-solid fa-water"></i> MONITORING HARIAN
+                                    </span>
+                                    <span class="text-xs text-slate-400" x-text="currentDateFormatted"></span>
+                                </div>
+                                <h4 class="text-lg font-bold text-slate-800 mt-1" x-text="currentLocation"></h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Pencatatan kondisi harian air dan lingkungan sungai Cisadane.</p>
+                            </div>
+                            <div class="flex items-center gap-4 w-full sm:w-auto justify-end">
+                                <div class="text-left sm:text-right">
+                                    <span class="text-xs text-slate-500 block">Status:</span>
+                                    <span class="text-sm font-bold" :class="getDailyStatus().cls" x-text="getDailyStatus().text"></span>
+                                </div>
+                                <button @click="openMonitoringForm()" class="px-5 py-3 bg-riverGreen-600 hover:bg-riverGreen-700 text-white rounded-xl text-xs font-semibold shadow transition flex items-center gap-2 shrink-0">
+                                    <i class="fa-solid fa-pen-to-square"></i> <span x-text="getDailyStatus().isDone ? 'Edit / Lihat Catatan' : 'Mulai Input Catatan'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Perkembangan Harian -->
+                <div class="card-custom bg-white p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800">Grafik Trend Kondisi Sungai</h3>
+                            <p class="text-xs text-slate-500">Perkembangan level air & indikator pencemaran harian</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select x-model="selectedTitikChart" @change="renderTrendChart()" class="text-xs border rounded-lg px-3 py-1.5 bg-slate-50 font-medium">
+                                <template x-for="loc in masterLocations" :key="loc">
+                                    <option :value="loc" x-text="loc"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="h-64 relative">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB 2: MONITORING (FORM MENU) ================= -->
+            <div x-show="currentTab === 'monitoring'" x-cloak class="space-y-6">
+                <div class="bg-white card-custom p-6 md:p-8">
+                    <div class="max-w-2xl mx-auto text-center mb-8">
+                        <span class="px-3 py-1 bg-riverGreen-100 text-riverGreen-800 rounded-full text-xs font-bold uppercase tracking-wider">
+                            MENU MONITORING KONDISI SUNGAI
+                        </span>
+                        <h2 class="text-2xl font-extrabold text-slate-800 mt-2">Form Pencatatan Harian Lapangan</h2>
+                        <p class="text-sm text-slate-500 mt-1">Silakan isi formulir pencatatan kondisi air dan lingkungan sungai Cisadane untuk hari ini.</p>
+                    </div>
+
+                    <div class="max-w-xl mx-auto">
+                        <div @click="openMonitoringForm()" class="card-custom bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 p-8 text-center cursor-pointer hover:shadow-lg transition transform hover:-translate-y-1">
+                            <div class="w-16 h-16 rounded-2xl bg-riverGreen-600 text-white flex items-center justify-center text-3xl mx-auto shadow-md mb-4">
+                                <i class="fa-solid fa-clipboard-check"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-800">Input Catatan Monitoring Harian</h3>
+                            <p class="text-xs text-slate-500 mt-2">Pencatatan lengkap cuaca, level air, warna, dan indikasi pencemaran serta upload foto ke Google Drive.</p>
+                            <button class="mt-6 w-full py-3 bg-riverGreen-600 hover:bg-riverGreen-700 text-white font-semibold rounded-xl text-xs shadow">Buka Formulir Monitoring</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB 3: RIWAYAT MONITORING ================= -->
+            <div x-show="currentTab === 'riwayat'" x-cloak class="space-y-6">
+                <div class="bg-white card-custom p-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-list text-riverGreen-600"></i> Riwayat Monitoring Sungai Cisadane
+                            </h2>
+                            <p class="text-xs text-slate-500">Daftar seluruh catatan data monitoring harian yang tersinkronisasi dari Google Sheets & Drive.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="loadDataFromSheets()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                                <i class="fa-solid fa-rotate" :class="isSyncing ? 'fa-spin' : ''"></i> Muat Ulang Data
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Cari Kata Kunci</label>
+                            <input type="text" x-model="filterKeyword" placeholder="Petugas..." class="w-full text-xs border rounded-xl px-3 py-2 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Tanggal</label>
+                            <input type="date" x-model="filterDate" class="w-full text-xs border rounded-xl px-3 py-2 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Lokasi / Titik</label>
+                            <select x-model="filterLocation" class="w-full text-xs border rounded-xl px-3 py-2 bg-white">
+                                <option value="">Semua Lokasi</option>
+                                <template x-for="loc in masterLocations" :key="loc">
+                                    <option :value="loc" x-text="loc"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-600 mb-1">Status Kondisi</label>
+                            <select x-model="filterStatus" class="w-full text-xs border rounded-xl px-3 py-2 bg-white">
+                                <option value="">Semua Status</option>
+                                <option value="BAIK">BAIK</option>
+                                <option value="WASPADA">WASPADA</option>
+                                <option value="BURUK">BURUK</option>
+                                <option value="KRITIS">KRITIS</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button @click="resetFilters()" class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition">Reset Filter</button>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Card View -->
+                    <div class="space-y-3 md:hidden">
+                        <template x-for="item in filteredHistory" :key="item.id">
+                            <div class="bg-white border rounded-2xl p-4 shadow-sm space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">Harian</span>
+                                    <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold"
+                                          :class="getStatusBadgeClass(item.statusKondisi)"
+                                          x-text="item.statusKondisi"></span>
+                                </div>
+                                <h4 class="font-bold text-sm text-slate-800" x-text="item.lokasi"></h4>
+                                <div class="text-xs text-slate-500 grid grid-cols-2 gap-1 pt-1 border-t">
+                                    <span><i class="fa-regular fa-calendar mr-1"></i> <span x-text="item.tanggal"></span></span>
+                                    <span><i class="fa-regular fa-clock mr-1"></i> <span x-text="item.waktuMonitoring"></span></span>
+                                    <span><i class="fa-regular fa-user mr-1"></i> <span x-text="item.namaPetugas"></span></span>
+                                    <span><i class="fa-solid fa-droplet mr-1"></i> <span x-text="item.levelAir"></span></span>
+                                </div>
+                                <div class="pt-2 flex justify-end gap-2">
+                                    <button @click="viewDetail(item)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Detail</button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="filteredHistory.length === 0" class="text-center py-8 text-slate-400 text-xs">
+                            Tidak ada data riwayat monitoring yang sesuai dengan filter.
+                        </div>
+                    </div>
+
+                    <!-- Desktop Table -->
+                    <div class="hidden md:block overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider border-b">
+                                    <th class="p-3">Tanggal</th>
+                                    <th class="p-3">Jam</th>
+                                    <th class="p-3">Lokasi Titik</th>
+                                    <th class="p-3">Petugas</th>
+                                    <th class="p-3">Level Air</th>
+                                    <th class="p-3">Cuaca</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="item in filteredHistory" :key="item.id">
+                                    <tr class="hover:bg-slate-50/80 transition">
+                                        <td class="p-3 text-slate-600" x-text="item.tanggal"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.waktuMonitoring"></td>
+                                        <td class="p-3 font-semibold text-slate-800" x-text="item.lokasi"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.namaPetugas"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.levelAir"></td>
+                                        <td class="p-3 text-slate-600" x-text="item.cuaca"></td>
+                                        <td class="p-3">
+                                            <span class="px-2.5 py-1 rounded-lg font-bold"
+                                                  :class="getStatusBadgeClass(item.statusKondisi)"
+                                                  x-text="item.statusKondisi"></span>
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <button @click="viewDetail(item)" class="px-3 py-1.5 bg-riverGreen-50 hover:bg-riverGreen-100 text-riverGreen-700 font-semibold rounded-lg">Detail</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredHistory.length === 0">
+                                    <td colspan="8" class="text-center py-8 text-slate-400">Tidak ada data riwayat monitoring.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= TAB 4: LAPORAN ================= -->
+            <div x-show="currentTab === 'laporan'" x-cloak class="space-y-6">
+                <div class="bg-white card-custom p-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-chart-column text-riverGreen-600"></i> Laporan Ringkasan Monitoring Cisadane
+                            </h2>
+                            <p class="text-xs text-slate-500">Analisis dan rekapitulasi harian/periode untuk keperluan instansi dan pimpinan.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="exportPDF()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-file-pdf"></i> EXPORT PDF
+                            </button>
+                            <button @click="exportExcel()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow transition flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> EXPORT EXCEL
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Cards in Report -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                            <p class="text-xs text-slate-500">Total Laporan Terkirim</p>
+                            <p class="text-2xl font-extrabold text-slate-800 mt-1" x-text="historyData.length">0</p>
+                        </div>
+                        <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
+                            <p class="text-xs text-emerald-700">Kondisi Baik</p>
+                            <p class="text-2xl font-extrabold text-emerald-700 mt-1" x-text="historyData.filter(i => i.statusKondisi === 'BAIK').length">0</p>
+                        </div>
+                        <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                            <p class="text-xs text-amber-700">Waspada / Buruk</p>
+                            <p class="text-2xl font-extrabold text-amber-700 mt-1" x-text="historyData.filter(i => i.statusKondisi === 'WASPADA' || i.statusKondisi === 'BURUK').length">0</p>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-2xl border border-red-200">
+                            <p class="text-xs text-red-700">Kritis</p>
+                            <p class="text-2xl font-extrabold text-red-700 mt-1" x-text="historyData.filter(i => i.statusKondisi === 'KRITIS').length">0</p>
+                        </div>
+                    </div>
+
+                    <!-- Daily Table Report -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-sm text-slate-800">Daftar Rekapitulasi Laporan Harian</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider border-b">
+                                        <th class="p-3">Tanggal</th>
+                                        <th class="p-3">Lokasi Titik</th>
+                                        <th class="p-3">Petugas</th>
+                                        <th class="p-3">Level Air</th>
+                                        <th class="p-3">Cuaca</th>
+                                        <th class="p-3">Status Kondisi</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <template x-for="row in historyData" :key="row.id">
+                                        <tr>
+                                            <td class="p-3 text-slate-600" x-text="row.tanggal"></td>
+                                            <td class="p-3 font-semibold text-slate-800" x-text="row.lokasi"></td>
+                                            <td class="p-3 text-slate-600" x-text="row.namaPetugas"></td>
+                                            <td class="p-3 text-slate-600" x-text="row.levelAir"></td>
+                                            <td class="p-3 text-slate-600" x-text="row.cuaca"></td>
+                                            <td class="p-3">
+                                                <span class="px-2.5 py-1 rounded font-bold text-[10px]" :class="getStatusBadgeClass(row.statusKondisi)" x-text="row.statusKondisi"></span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <nav class="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-40 flex items-center justify-around py-2 px-1 shadow-lg">
+        <template x-for="item in navItems" :key="item.id">
+            <button @click="currentTab = item.id" 
+                :class="currentTab === item.id ? 'text-riverGreen-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-600'"
+                class="flex flex-col items-center justify-center py-1 px-3 text-[11px] transition duration-200">
+                <i :class="item.icon" class="text-lg mb-0.5"></i>
+                <span x-text="item.label"></span>
+            </button>
+        </template>
+    </nav>
+
+
+    <!-- ================= MODAL: FORM MONITORING ================= -->
+    <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-white card-custom w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-6">
+            <div class="flex items-center justify-between pb-4 border-b">
+                <div>
+                    <span class="px-3 py-1 bg-riverGreen-100 text-riverGreen-800 rounded-full text-xs font-bold uppercase tracking-wider">FORM MONITORING HARIAN</span>
+                    <h2 class="text-xl font-extrabold text-slate-800 mt-1">Pencatatan Kondisi Sungai Cisadane</h2>
+                </div>
+                <button @click="showFormModal = false" class="text-slate-400 hover:text-slate-600 p-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <!-- Form Fields -->
+            <form @submit.prevent="submitMonitoring()" class="space-y-6">
+                
+                <!-- IDENTITAS MONITORING -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-sm text-riverGreen-dark flex items-center gap-2">
+                        <i class="fa-solid fa-id-card"></i> Identitas Monitoring
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Tanggal</label>
+                            <input type="date" x-model="formData.tanggal" required class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Jam Monitoring</label>
+                            <input type="time" x-model="formData.waktuMonitoring" required class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Nama Petugas</label>
+                            <input type="text" x-model="formData.namaPetugas" required class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Lokasi / Titik Monitoring</label>
+                            <select x-model="formData.lokasi" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white font-semibold">
+                                <template x-for="loc in masterLocations" :key="loc">
+                                    <option :value="loc" x-text="loc"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KONDISI CUACA -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                    <h3 class="font-bold text-sm text-riverGreen-dark flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-sun"></i> Kondisi Cuaca
+                    </h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <template x-for="c in ['Cerah', 'Berawan', 'Mendung', 'Hujan ringan', 'Hujan sedang', 'Hujan deras']">
+                            <label class="flex items-center gap-2.5 p-3 bg-white border rounded-xl cursor-pointer hover:border-riverGreen-500 transition">
+                                <input type="radio" name="cuaca" :value="c" x-model="formData.cuaca" class="text-riverGreen-600 focus:ring-riverGreen-500">
+                                <span class="text-xs font-medium text-slate-700" x-text="c"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- KONDISI AIR SUNGAI -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-sm text-riverGreen-dark flex items-center gap-2">
+                        <i class="fa-solid fa-water"></i> Kondisi Air Sungai
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Ketinggian / Level Air</label>
+                            <select x-model="formData.levelAir" required class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white font-semibold">
+                                <option value="🟢 Surut">🟢 Surut</option>
+                                <option value="🟡 Sedang">🟡 Sedang</option>
+                                <option value="🔴 Tinggi">🔴 Tinggi</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Warna Air</label>
+                            <select x-model="formData.warnaAir" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                                <option value="Jernih">Jernih</option>
+                                <option value="Keruh">Keruh</option>
+                                <option value="Cokelat">Cokelat</option>
+                                <option value="Kehitaman">Kehitaman</option>
+                                <option value="Lainnya">Lainnya</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Kondisi Permukaan Air</label>
+                            <select x-model="formData.permukaanAir" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                                <option value="Normal">Normal</option>
+                                <option value="Sedikit meningkat">Sedikit meningkat</option>
+                                <option value="Tinggi">Tinggi</option>
+                                <option value="Sangat tinggi">Sangat tinggi</option>
+                                <option value="Meluap">Meluap</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Bau Air</label>
+                            <input type="text" x-model="formData.bauAir" placeholder="Contoh: Normal / Amis / Belerang / Menyengat" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INDIKASI PENCEMARAN -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-sm text-riverGreen-dark flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Indikasi Pencemaran
+                    </h3>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Tingkat Indikasi Pencemaran</label>
+                        <select x-model="formData.indikasiPencemaran" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white font-semibold">
+                            <option value="Tidak ada">Tidak ada</option>
+                            <option value="Ada sedikit">Ada sedikit</option>
+                            <option value="Sedang">Sedang</option>
+                            <option value="Tinggi">Tinggi</option>
+                            <option value="Sangat tinggi">Sangat tinggi</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="formData.indikasiPencemaran !== 'Tidak ada'">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Jenis / Indikasi Pencemaran</label>
+                            <input type="text" x-model="formData.jenisPencemaran" placeholder="Contoh: Busa limbah / Minyak / Keruh pekat" class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Kondisi Pencemaran</label>
+                            <input type="text" x-model="formData.catatanPencemaran" placeholder="Keterangan tambahan sumber/dampak..." class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KONDISI UMUM SUNGAI -->
+                <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-sm text-riverGreen-dark flex items-center gap-2">
+                            <i class="fa-solid fa-stethoscope"></i> Kondisi Umum Sungai (Status Akhir)
+                        </h3>
+                        <button type="button" @click="calculateAutoStatus()" class="px-3 py-1 bg-riverGreen-600 hover:bg-riverGreen-700 text-white rounded-lg text-[11px] font-bold shadow">Hitung Rekomendasi Otomatis</button>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <label class="flex items-center gap-2 p-3 bg-white border rounded-xl cursor-pointer hover:border-emerald-500 transition">
+                            <input type="radio" name="statusKondisi" value="BAIK" x-model="formData.statusKondisi" class="text-emerald-600">
+                            <span class="text-xs font-bold text-emerald-700">🟢 BAIK</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white border rounded-xl cursor-pointer hover:border-amber-500 transition">
+                            <input type="radio" name="statusKondisi" value="WASPADA" x-model="formData.statusKondisi" class="text-amber-500">
+                            <span class="text-xs font-bold text-amber-600">🟡 WASPADA</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white border rounded-xl cursor-pointer hover:border-orange-500 transition">
+                            <input type="radio" name="statusKondisi" value="BURUK" x-model="formData.statusKondisi" class="text-orange-500">
+                            <span class="text-xs font-bold text-orange-600">🟠 BURUK</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white border rounded-xl cursor-pointer hover:border-red-500 transition">
+                            <input type="radio" name="statusKondisi" value="KRITIS" x-model="formData.statusKondisi" class="text-red-600">
+                            <span class="text-xs font-bold text-red-600">🔴 KRITIS</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- DOKUMENTASI FOTO (TERHUBUNG GOOGLE DRIVE) -->
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                    <label class="block text-xs font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-camera text-riverGreen-600"></i> Dokumentasi Foto Lapangan (Otomatis Upload ke Google Drive)
+                    </label>
+                    <div class="flex flex-col sm:flex-row gap-4 items-center">
+                        <input type="file" accept="image/*" @change="handleImageUpload($event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-riverGreen-50 file:text-riverGreen-700 hover:file:bg-riverGreen-100">
+                        <div class="w-24 h-24 bg-slate-200 rounded-xl overflow-hidden flex items-center justify-center border shrink-0">
+                            <template x-if="formData.foto">
+                                <img :src="formData.foto" class="w-full h-full object-cover">
+                            </template>
+                            <template x-if="!formData.foto">
+                                <span class="text-[10px] text-slate-400 text-center p-1">Preview Foto</span>
+                            </template>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Keterangan Foto</label>
+                        <input type="text" x-model="formData.keteranganFoto" placeholder="Contoh: Kondisi aliran air di Interceptor..." class="w-full text-xs border rounded-xl px-3 py-2.5 bg-white">
+                    </div>
+                </div>
+
+                <!-- TOMBOL AKSI FORM -->
+                <div class="pt-4 border-t flex flex-col sm:flex-row items-center justify-end gap-3">
+                    <button type="button" @click="confirmResetForm()" class="w-full sm:w-auto px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition">
+                        🔄 RESET FORM
+                    </button>
+                    <button type="submit" :disabled="isSubmitting" class="w-full sm:w-auto px-8 py-3 bg-riverGreen-600 hover:bg-riverGreen-700 text-white font-bold rounded-xl text-xs shadow-lg transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i> <span x-text="isSubmitting ? 'Mengupload ke Google Drive & Sheets...' : '💾 SIMPAN MONITORING'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL: DETAIL RIWAYAT ================= -->
+    <div x-show="showDetailModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-white card-custom w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-6">
+            <template x-if="selectedDetailItem">
+                <div>
+                    <div class="flex items-center justify-between pb-4 border-b">
+                        <div>
+                            <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">MONITORING HARIAN</span>
+                            <h2 class="text-xl font-extrabold text-slate-800 mt-1" x-text="selectedDetailItem.lokasi"></h2>
+                        </div>
+                        <button @click="showDetailModal = false" class="text-slate-400 hover:text-slate-600 p-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border my-4">
+                        <div><span class="text-slate-400 block">Tanggal</span><strong class="text-slate-800" x-text="selectedDetailItem.tanggal"></strong></div>
+                        <div><span class="text-slate-400 block">Jam Monitoring</span><strong class="text-slate-800" x-text="selectedDetailItem.waktuMonitoring"></strong></div>
+                        <div><span class="text-slate-400 block">Petugas</span><strong class="text-slate-800" x-text="selectedDetailItem.namaPetugas"></strong></div>
+                        <div><span class="text-slate-400 block">Cuaca</span><strong class="text-slate-800" x-text="selectedDetailItem.cuaca"></strong></div>
+                        <div><span class="text-slate-400 block">Level Air</span><strong class="text-slate-800" x-text="selectedDetailItem.levelAir"></strong></div>
+                        <div><span class="text-slate-400 block">Warna Air</span><strong class="text-slate-800" x-text="selectedDetailItem.warnaAir"></strong></div>
+                        <div><span class="text-slate-400 block">Permukaan Air</span><strong class="text-slate-800" x-text="selectedDetailItem.permukaanAir"></strong></div>
+                        <div><span class="text-slate-400 block">Status Akhir</span><span class="px-2 py-0.5 rounded font-bold" :class="getStatusBadgeClass(selectedDetailItem.statusKondisi)" x-text="selectedDetailItem.statusKondisi"></span></div>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div><strong class="text-slate-700 block mb-1">Indikasi Pencemaran:</strong><p class="text-slate-600 bg-white p-3 rounded-xl border" x-text="selectedDetailItem.indikasiPencemaran + (selectedDetailItem.jenisPencemaran ? ' (' + selectedDetailItem.jenisPencemaran + ')' : '')"></p></div>
+                        <template x-if="selectedDetailItem.foto">
+                            <div>
+                                <strong class="text-slate-700 block mb-1">Dokumentasi Foto (Google Drive):</strong>
+                                <img :src="selectedDetailItem.foto" class="rounded-xl max-h-48 object-cover border mt-1">
+                                <div class="mt-1 flex items-center justify-between">
+                                    <p class="text-[11px] text-slate-500" x-text="selectedDetailItem.keteranganFoto"></p>
+                                    <a :href="selectedDetailItem.foto" target="_blank" class="text-riverBlue-600 underline text-[11px] font-semibold">Buka Gambar Asli di Drive</a>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <div class="pt-4 border-t flex justify-end mt-4">
+                        <button @click="showDetailModal = false" class="px-6 py-2.5 bg-slate-800 text-white rounded-xl text-xs font-bold">Tutup</button>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL: KONFIRMASI RESET ================= -->
+    <div x-show="showResetConfirmModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white card-custom w-full max-w-md p-6 text-center space-y-4">
+            <div class="w-14 h-14 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-2xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800">Konfirmasi Reset Form</h3>
+            <p class="text-xs text-slate-600">Apakah Anda yakin ingin mereset form? Semua data yang sedang Anda isi akan dikosongkan. (Data yang sudah tersimpan di Google Sheets aman).</p>
+            <div class="flex gap-3 pt-2">
+                <button @click="showResetConfirmModal = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">BATAL</button>
+                <button @click="executeResetForm()" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold">YA, RESET</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL: KONFIRMASI CLEAR ALL DATA ================= -->
+    <div x-show="showClearConfirmModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white card-custom w-full max-w-md p-6 text-center space-y-4">
+            <div class="w-14 h-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-2xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800">Hapus Semua Data Tersimpan?</h3>
+            <p class="text-xs text-slate-600">Peringatan: Tindakan ini akan menghapus seluruh data riwayat monitoring yang tersimpan pada penyimpanan lokal browser Anda secara permanen.</p>
+            <div class="flex gap-3 pt-2">
+                <button @click="showClearConfirmModal = false" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">BATAL</button>
+                <button @click="executeClearAllData()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold">YA, HAPUS SEMUA</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL: CONFIG GAS URL ================= -->
+    <div x-show="showSettingsModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white card-custom w-full max-w-lg p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-gear text-riverGreen-600"></i> Konfigurasi Google Apps Script & Drive
+                </h3>
+                <button @click="showSettingsModal = false" class="text-slate-400"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-600">Masukkan URL Web App dari Google Apps Script agar foto tersimpan otomatis ke Google Drive dan data tercatat ke Google Sheets.</p>
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">URL Web App GAS:</label>
+                <input type="url" x-model="gasScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs border rounded-xl p-3 bg-slate-50">
+            </div>
+            <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px] text-amber-800 space-y-1">
+                <p class="font-bold">Panduan Integrasi Google Drive & Sheets:</p>
+                <p>1. Buat Google Sheet baru dan siapkan folder di Google Drive untuk foto.</p>
+                <p>2. Salin kode Backend Apps Script (disediakan di bawah) ke editor script.</p>
+                <p>3. Masukkan ID Folder Google Drive pada variabel `FOLDER_ID` di script.</p>
+                <p>4. Deploy sebagai Web App (akses: <em>Anyone</em>) dan salin URL `/exec` di atas.</p>
+            </div>
+            <div class="pt-2 flex justify-end gap-2">
+                <button @click="showSettingsModal = false" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Batal</button>
+                <button @click="saveGasUrl()" class="px-5 py-2 bg-riverGreen-600 text-white rounded-xl text-xs font-bold">Simpan & Sinkronkan</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= NOTIFICATION TOAST ================= -->
+    <div x-show="toast.show" x-cloak x-transition class="fixed bottom-20 md:bottom-6 right-4 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-slate-700 text-xs">
+        <i :class="toast.type === 'success' ? 'fa-solid fa-circle-check text-emerald-400 text-base' : 'fa-solid fa-triangle-exclamation text-amber-400 text-base'"></i>
+        <span x-text="toast.message"></span>
+    </div>
+
+
+    <!-- JAVASCRIPT APP LOGIC WITH TWO-WAY GOOGLE SHEETS & DRIVE SYNC -->
+    <script>
+        function cisadaneApp() {
+            return {
+                currentTab: 'dashboard',
+                petugasName: 'Verrel',
+                currentLocation: 'Interceptor 020',
+                currentDateFormatted: '7 Oktober 2026',
+                gasScriptUrl: localStorage.getItem('cisadane_gas_url') || '',
+                isOnlineSync: false,
+                isSubmitting: false,
+                isSyncing: false,
+
+                dashboardPeriod: 'hari_ini',
+                customStartDate: new Date().toISOString().split('T')[0],
+                customEndDate: new Date().toISOString().split('T')[0],
+
+                showFormModal: false,
+                showDetailModal: false,
+                showResetConfirmModal: false,
+                showClearConfirmModal: false,
+                showSettingsModal: false,
+
+                selectedTitikChart: 'Interceptor 020',
+                selectedDetailItem: null,
+
+                toast: { show: false, message: '', type: 'success' },
+
+                navItems: [
+                    { id: 'dashboard', label: 'Dashboard', icon: 'fa-solid fa-house' },
+                    { id: 'monitoring', label: 'Monitoring', icon: 'fa-solid fa-pen-to-square' },
+                    { id: 'riwayat', label: 'Riwayat', icon: 'fa-solid fa-clipboard-list' },
+                    { id: 'laporan', label: 'Laporan', icon: 'fa-solid fa-chart-column' }
+                ],
+
+                masterLocations: [
+                    'Interceptor 020',
+                ],
+
+                stats: { totalTitik: 6, sudahDiperiksa: 0, belumDiperiksa: 6, baik: 0, waspada: 0, buruk: 0, kritis: 0 },
+
+                formData: {
+                    id: '',
+                    timestamp: '',
+                    tanggal: new Date().toISOString().split('T')[0],
+                    waktuMonitoring: new Date().toTimeString().substring(0, 5),
+                    namaPetugas: 'Verrel',
+                    lokasi: 'Interceptor 020',
+                    cuaca: 'Cerah',
+                    levelAir: '🟢 Surut',
+                    warnaAir: 'Jernih',
+                    permukaanAir: 'Normal',
+                    bauAir: 'Normal',
+                    indikasiPencemaran: 'Tidak ada',
+                    jenisPencemaran: '',
+                    catatanPencemaran: '',
+                    statusKondisi: 'BAIK',
+                    foto: '',
+                    fileData: '',
+                    mimeType: '',
+                    fileName: '',
+                    keteranganFoto: 'Kondisi harian'
+                },
+
+                historyData: [],
+
+                filterKeyword: '',
+                filterDate: '',
+                filterLocation: '',
+                filterStatus: '',
+
+                init() {
+                    // Set current date formatted dynamically following system date
+                    const now = new Date();
+                    const options = { day: 'numeric', month: 'long', year: 'numeric' };
+                    this.currentDateFormatted = now.toLocaleDateString('id-ID', options);
+                    
+                    this.checkOnlineStatus();
+                    this.loadDataFromSheets();
+                    this.$watch('historyData', () => { this.updateStats(); });
+                    this.$watch('dashboardPeriod', () => { this.updateStats(); });
+                    this.$watch('customStartDate', () => { if(this.dashboardPeriod === 'custom') this.updateStats(); });
+                    this.$watch('customEndDate', () => { if(this.dashboardPeriod === 'custom') this.updateStats(); });
+                },
+
+                checkOnlineStatus() {
+                    this.isOnlineSync = Boolean(this.gasScriptUrl && this.gasScriptUrl.startsWith('http'));
+                },
+
+                saveGasUrl() {
+                    localStorage.setItem('cisadane_gas_url', this.gasScriptUrl);
+                    this.checkOnlineStatus();
+                    this.showSettingsModal = false;
+                    this.loadDataFromSheets();
+                    this.showToast('Konfigurasi URL Google Apps Script berhasil disimpan & disinkronkan.', 'success');
+                },
+
+                openMonitoringForm() {
+                    this.showFormModal = true;
+                },
+
+                calculateAutoStatus() {
+                    let status = 'BAIK';
+                    if (this.formData.levelAir === '🟡 Sedang' || this.formData.permukaanAir === 'Tinggi' || this.formData.indikasiPencemaran === 'Ada sedikit') {
+                        status = 'WASPADA';
+                    }
+                    if (this.formData.levelAir === '🔴 Tinggi' || this.formData.permukaanAir === 'Sangat tinggi' || this.formData.indikasiPencemaran === 'Sedang' || this.formData.warnaAir === 'Cokelat') {
+                        status = 'BURUK';
+                    }
+                    if (this.formData.permukaanAir === 'Meluap' || this.formData.indikasiPencemaran === 'Tinggi' || this.formData.indikasiPencemaran === 'Sangat tinggi' || this.formData.warnaAir === 'Kehitaman') {
+                        status = 'KRITIS';
+                    }
+                    this.formData.statusKondisi = status;
+                    this.showToast('Rekomendasi status kondisi otomatis: ' + status, 'success');
+                },
+
+                handleImageUpload(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.formData.fileName = file.name;
+                        this.formData.mimeType = file.type;
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            this.formData.foto = e.target.result;
+                            const base64Content = e.target.result.split(',')[1];
+                            this.formData.fileData = base64Content;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                },
+
+                confirmResetForm() {
+                    this.showResetConfirmModal = true;
+                },
+
+                executeResetForm() {
+                    this.formData.cuaca = 'Cerah';
+                    this.formData.levelAir = '🟢 Surut';
+                    this.formData.warnaAir = 'Jernih';
+                    this.formData.permukaanAir = 'Normal';
+                    this.formData.bauAir = '';
+                    this.formData.indikasiPencemaran = 'Tidak ada';
+                    this.formData.jenisPencemaran = '';
+                    this.formData.catatanPencemaran = '';
+                    this.formData.statusKondisi = 'BAIK';
+                    this.formData.foto = '';
+                    this.formData.fileData = '';
+                    this.formData.mimeType = '';
+                    this.formData.fileName = '';
+                    this.formData.keteranganFoto = '';
+                    this.showResetConfirmModal = false;
+                    this.showToast('Form berhasil direset.', 'success');
+                },
+
+                confirmClearAllData() {
+                    this.showClearConfirmModal = true;
+                },
+
+                executeClearAllData() {
+                    localStorage.removeItem('cisadane_history');
+                    this.historyData = [];
+                    this.updateStats();
+                    this.showClearConfirmModal = false;
+                    this.showToast('Semua data tersimpan berhasil dihapus.', 'success');
+                },
+
+                async submitMonitoring() {
+                    this.isSubmitting = true;
+                    this.formData.id = 'CIS-' + Date.now();
+                    this.formData.timestamp = new Date().toISOString();
+
+                    if (this.isOnlineSync) {
+                        try {
+                            const response = await fetch(this.gasScriptUrl, {
+                                method: 'POST',
+                                mode: 'no-cors',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    ID: this.formData.id,
+                                    Timestamp: this.formData.timestamp,
+                                    Tanggal: this.formData.tanggal,
+                                    'Waktu Monitoring': this.formData.waktuMonitoring,
+                                    'Nama Petugas': this.formData.namaPetugas,
+                                    Lokasi: this.formData.lokasi,
+                                    Cuaca: this.formData.cuaca,
+                                    'Level Air': this.formData.levelAir,
+                                    'Warna Air': this.formData.warnaAir,
+                                    'Permukaan Air': this.formData.permukaanAir,
+                                    'Bau Air': this.formData.bauAir,
+                                    'Indikasi Pencemaran': this.formData.indikasiPencemaran,
+                                    'Jenis Pencemaran': this.formData.jenisPencemaran,
+                                    'Status Kondisi': this.formData.statusKondisi,
+                                    Foto: this.formData.foto,
+                                    Filedata: this.formData.fileData,
+                                    Mimetype: this.formData.mimeType,
+                                    Filename: this.formData.fileName,
+                                    'Keterangan Foto': this.formData.keteranganFoto
+                                })
+                            });
+                            this.saveRecordLocally();
+                            this.showToast('Data monitoring & foto berhasil diupload ke Google Drive & Sheets.', 'success');
+                            this.showFormModal = false;
+                            setTimeout(() => { this.loadDataFromSheets(); }, 2000);
+                        } catch (err) {
+                            this.showToast('Menyimpan secara lokal.', 'warning');
+                            this.saveRecordLocally();
+                            this.showFormModal = false;
+                        } finally {
+                            this.isSubmitting = false;
+                        }
+                    } else {
+                        setTimeout(() => {
+                            this.saveRecordLocally();
+                            this.isSubmitting = false;
+                            this.showFormModal = false;
+                            this.showToast('Data monitoring berhasil disimpan (Mode Lokal).', 'success');
+                        }, 800);
+                    }
+                },
+
+                saveRecordLocally() {
+                    const existingIdx = this.historyData.findIndex(item => item.tanggal === this.formData.tanggal && item.lokasi === this.formData.lokasi);
+                    if (existingIdx >= 0) {
+                        this.historyData[existingIdx] = { ...this.formData };
+                    } else {
+                        this.historyData.unshift({ ...this.formData });
+                    }
+                    localStorage.setItem('cisadane_history', JSON.stringify(this.historyData));
+                    this.updateStats();
+                    this.renderTrendChart();
+                },
+
+                async loadDataFromSheets() {
+                    this.isSyncing = true;
+                    if (this.isOnlineSync) {
+                        try {
+                            const res = await fetch(this.gasScriptUrl);
+                            const result = await res.json();
+                            if (result.status === 'success' && Array.isArray(result.data) && result.data.length > 0) {
+                                this.historyData = result.data.map(row => ({
+                                    id: row.ID || ('CIS-' + Math.random()),
+                                    timestamp: row.Timestamp || new Date().toISOString(),
+                                    tanggal: row.Tanggal || new Date().toISOString().split('T')[0],
+                                    waktuMonitoring: row['Waktu Monitoring'] || '08:00',
+                                    namaPetugas: row['Nama Petugas'] || 'Verrel',
+                                    lokasi: row.Lokasi || 'Interceptor 020',
+                                    cuaca: row.Cuaca || 'Cerah',
+                                    levelAir: row['Level Air'] || '🟢 Surut',
+                                    warnaAir: row['Warna Air'] || 'Jernih',
+                                    permukaanAir: row['Permukaan Air'] || 'Normal',
+                                    bauAir: row['Bau Air'] || 'Normal',
+                                    indikasiPencemaran: row['Indikasi Pencemaran'] || 'Tidak ada',
+                                    jenisPencemaran: row['Jenis Pencemaran'] || '',
+                                    statusKondisi: row['Status Kondisi'] || 'BAIK',
+                                    foto: row.Foto || '',
+                                    keteranganFoto: row['Keterangan Foto'] || ''
+                                })).reverse();
+                                localStorage.setItem('cisadane_history', JSON.stringify(this.historyData));
+                                this.showToast('Sinkronisasi 2-arah dari Google Sheets & Drive berhasil!', 'success');
+                            }
+                        } catch (err) {
+                            console.warn('Gagal sinkronisasi online, memuat cache lokal:', err);
+                            this.loadLocalCache();
+                        } finally {
+                            this.isSyncing = false;
+                        }
+                    } else {
+                        this.loadLocalCache();
+                        this.isSyncing = false;
+                    }
+                    this.updateStats();
+                    setTimeout(() => { this.renderTrendChart(); }, 200);
+                },
+
+                loadLocalCache() {
+                    const local = localStorage.getItem('cisadane_history');
+                    if (local) {
+                        try {
+                            this.historyData = JSON.parse(local);
+                        } catch (e) {
+                            this.historyData = [];
+                        }
+                    } else {
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        this.historyData = [
+                            {
+                                id: 'CIS-' + Date.now(),
+                                timestamp: new Date().toISOString(),
+                                tanggal: todayStr,
+                                waktuMonitoring: '08:00',
+                                namaPetugas: 'Verrel',
+                                lokasi: 'Interceptor 020',
+                                cuaca: 'Cerah',
+                                levelAir: '🟢 Surut',
+                                warnaAir: 'Jernih',
+                                permukaanAir: 'Normal',
+                                bauAir: 'Normal',
+                                indikasiPencemaran: 'Tidak ada',
+                                statusKondisi: 'BAIK',
+                                foto: '',
+                                keteranganFoto: '-'
+                            }
+                        ];
+                    }
+                },
+
+                getPeriodFilteredRecords() {
+                    const now = new Date();
+                    const todayStr = now.toISOString().split('T')[0];
+                    
+                    const yesterday = new Date(now);
+                    yesterday.setDate(now.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                    return this.historyData.filter(item => {
+                        const itemDate = item.tanggal;
+                        if (this.dashboardPeriod === 'hari_ini') {
+                            return itemDate === todayStr;
+                        } else if (this.dashboardPeriod === 'kemarin') {
+                            return itemDate === yesterdayStr;
+                        } else if (this.dashboardPeriod === '7_hari') {
+                            const d = new Date(itemDate);
+                            const diffTime = Math.abs(now - d);
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            return diffDays <= 7;
+                        } else if (this.dashboardPeriod === 'bulan_ini') {
+                            return itemDate.startsWith(now.toISOString().substring(0, 7));
+                        } else if (this.dashboardPeriod === 'tahun_ini') {
+                            return itemDate.startsWith(now.getFullYear().toString());
+                        } else if (this.dashboardPeriod === 'custom') {
+                            return itemDate >= this.customStartDate && itemDate <= this.customEndDate;
+                        }
+                        return true;
+                    });
+                },
+
+                updateStats() {
+                    this.stats.totalTitik = this.masterLocations.length;
+                    const periodRecords = this.getPeriodFilteredRecords();
+                    
+                    const checkedLocations = new Set(periodRecords.map(i => i.lokasi));
+                    this.stats.sudahDiperiksa = checkedLocations.size;
+                    this.stats.belumDiperiksa = Math.max(0, this.stats.totalTitik - this.stats.sudahDiperiksa);
+
+                    this.stats.baik = periodRecords.filter(i => i.statusKondisi === 'BAIK').length;
+                    this.stats.waspada = periodRecords.filter(i => i.statusKondisi === 'WASPADA').length;
+                    this.stats.buruk = periodRecords.filter(i => i.statusKondisi === 'BURUK').length;
+                    this.stats.kritis = periodRecords.filter(i => i.statusKondisi === 'KRITIS').length;
+                },
+
+                getPeriodLabelText() {
+                    if (this.dashboardPeriod === 'hari_ini') return 'Hari Ini';
+                    if (this.dashboardPeriod === 'kemarin') return 'Kemarin';
+                    if (this.dashboardPeriod === '7_hari') return '7 Hari';
+                    if (this.dashboardPeriod === 'bulan_ini') return 'Bulan Ini';
+                    if (this.dashboardPeriod === 'tahun_ini') return 'Tahun Ini';
+                    if (this.dashboardPeriod === 'semua') return 'Semua Waktu';
+                    if (this.dashboardPeriod === 'custom') return `${this.customStartDate} s/d ${this.customEndDate}`;
+                    return 'Periode Aktif';
+                },
+
+                get periodOverallStatus() {
+                    const periodRecords = this.getPeriodFilteredRecords();
+                    const kritis = periodRecords.filter(i => i.statusKondisi === 'KRITIS').length;
+                    const buruk = periodRecords.filter(i => i.statusKondisi === 'BURUK').length;
+                    const waspada = periodRecords.filter(i => i.statusKondisi === 'WASPADA').length;
+                    const baik = periodRecords.filter(i => i.statusKondisi === 'BAIK').length;
+
+                    if (kritis > 0) return 'KRITIS';
+                    if (buruk > 0) return 'BURUK';
+                    if (waspada > 0) return 'WASPADA';
+                    if (baik > 0) return 'BAIK';
+                    return 'BELUM ADA DATA';
+                },
+
+                getDailyStatus() {
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const found = this.historyData.find(i => i.tanggal === todayStr && i.lokasi === this.currentLocation);
+                    if (found) {
+                        return { isDone: true, text: found.statusKondisi, cls: this.getStatusBadgeClass(found.statusKondisi) };
+                    }
+                    return { isDone: false, text: 'Belum diperiksa', cls: 'text-slate-400' };
+                },
+
+                getStatusBadgeClass(status) {
+                    if (status === 'BAIK') return 'bg-emerald-100 text-emerald-800';
+                    if (status === 'WASPADA') return 'bg-amber-100 text-amber-800';
+                    if (status === 'BURUK') return 'bg-orange-100 text-orange-800';
+                    if (status === 'KRITIS') return 'bg-red-100 text-red-800';
+                    return 'bg-slate-100 text-slate-600';
+                },
+
+                getStatusIconClass(status) {
+                    if (status === 'BAIK') return 'fa-solid fa-face-smile text-emerald-500';
+                    if (status === 'WASPADA') return 'fa-solid fa-face-meh text-amber-500';
+                    if (status === 'BURUK') return 'fa-solid fa-face-frown text-orange-500';
+                    if (status === 'KRITIS') return 'fa-solid fa-triangle-exclamation text-red-600';
+                    return 'fa-solid fa-circle-question text-slate-400';
+                },
+
+                get filteredHistory() {
+                    return this.historyData.filter(item => {
+                        const matchKw = this.filterKeyword === '' || item.namaPetugas.toLowerCase().includes(this.filterKeyword.toLowerCase()) || item.lokasi.toLowerCase().includes(this.filterKeyword.toLowerCase());
+                        const matchDate = this.filterDate === '' || item.tanggal === this.filterDate;
+                        const matchLoc = this.filterLocation === '' || item.lokasi === this.filterLocation;
+                        const matchStatus = this.filterStatus === '' || item.statusKondisi === this.filterStatus;
+                        return matchKw && matchDate && matchLoc && matchStatus;
+                    });
+                },
+
+                resetFilters() {
+                    this.filterKeyword = '';
+                    this.filterDate = '';
+                    this.filterLocation = '';
+                    this.filterStatus = '';
+                },
+
+                viewDetail(item) {
+                    this.selectedDetailItem = item;
+                    this.showDetailModal = true;
+                },
+
+                exportPDF() {
+                    window.print();
+                },
+
+                exportExcel() {
+                    let csvContent = "data:text/csv;charset=utf-8,ID,Tanggal,Waktu,Petugas,Lokasi,Cuaca,Level Air,Warna Air,Permukaan Air,Bau Air,Indikasi Pencemaran,Status Kondisi,Foto Drive\n";
+                    this.historyData.forEach(row => {
+                        csvContent += [
+                            row.id, 
+                            row.tanggal, 
+                            row.waktuMonitoring, 
+                            `"${row.namaPetugas}"`, 
+                            `"${row.lokasi}"`, 
+                            row.cuaca, 
+                            `"${row.levelAir}"`, 
+                            row.warnaAir, 
+                            row.permukaanAir, 
+                            row.bauAir, 
+                            `"${row.indikasiPencemaran}"`, 
+                            row.statusKondisi,
+                            `"${row.foto || ''}"`
+                        ].join(",") + "\n";
+                    });
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "laporan_monitoring_cisadane.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    this.showToast('File laporan CSV/Excel terformat rapi berhasil diexport.', 'success');
+                },
+
+                showToast(msg, type = 'success') {
+                    this.toast.message = msg;
+                    this.toast.type = type;
+                    this.toast.show = true;
+                    setTimeout(() => { this.toast.show = false; }, 3500);
+                }
+            }
+        }
+
+        let trendChartInstance = null;
+        function initTrendChart() {
+            const ctx = document.getElementById('trendChart');
+            if (!ctx) return;
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['7 Hari Lalu', '5 Hari Lalu', '3 Hari Lalu', 'Kemarin', 'Hari Ini'],
+                    datasets: [{
+                        label: 'Kondisi Status Harian',
+                        data: [1, 1, 2, 1, 1],
+                        borderColor: '#16a34a',
+                        backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#0ea5e9'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: function(value) {
+                                    if(value === 1) return 'Baik';
+                                    if(value === 2) return 'Waspada';
+                                    if(value === 3) return 'Buruk';
+                                    if(value === 4) return 'Kritis';
+                                    return '';
+                                },
+                                stepSize: 1
+                            },
+                            min: 1,
+                            max: 4
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initTrendChart();
+        });
+    </script>
+</body>
+</html>
+```
